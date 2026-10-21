@@ -1,0 +1,20 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Data Detective (FastAPI)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": ["data_detective.api:app", "--reload", "--port", "8000"],
+      "jinja": true,
+      "justMyCode": true
+    },
+    {
+      "name": "Regenerate synthetic data",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "data_detective.datagen"
+    }
+  ]
+}

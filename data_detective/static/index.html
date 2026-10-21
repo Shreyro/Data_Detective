@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Data Detective</title>
+<link rel="icon" href="data:,">
+<script src="/vendor/plotly.min.js" charset="utf-8"></script>
+<style>
+:root{
+  --bg:#0d0a1f; --bg2:#14102c; --panel:rgba(255,255,255,.04); --line:rgba(139,108,255,.38);
+  --text:#ece9ff; --muted:#9a93c4; --purple:#a855f7; --blue:#60a5fa; --green:#34d399; --red:#f87171; --amber:#fbbf24;
+  --code:#0b0919; --grad:linear-gradient(135deg,#a855f7,#5b8def);
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:radial-gradient(1200px 700px at 15% -10%,#2a1763 0%,transparent 60%),radial-gradient(900px 600px at 100% 110%,#13296b 0%,transparent 55%),var(--bg);
+  color:var(--text);font:14px/1.5 Inter,"Segoe UI",system-ui,sans-serif;padding:20px}
+.app{display:grid;grid-template-columns:minmax(380px,1fr) minmax(420px,1fr);gap:20px;max-width:1500px;margin:0 auto;height:calc(100vh - 40px)}
+.card{background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.02));border:1px solid var(--line);border-radius:18px;
+  box-shadow:0 0 0 1px rgba(96,165,250,.08),0 20px 60px rgba(0,0,0,.45);backdrop-filter:blur(8px)}
+/* chat window */
+.chat{display:flex;flex-direction:column;overflow:hidden;min-height:0}
+.titlebar{display:flex;gap:7px;padding:12px 16px;background:rgba(255,255,255,.05);border-bottom:1px solid rgba(255,255,255,.06)}
+.titlebar i{width:11px;height:11px;border-radius:50%;display:block}
+.head{display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid rgba(255,255,255,.06)}
+.logo{width:40px;height:40px;border-radius:50%;background:rgba(168,85,247,.25);border:1px solid var(--line);display:grid;place-items:center}
+.head h1{font-size:20px;margin:0;font-weight:600;flex:1}
+.pill{font-size:11px;padding:3px 9px;border-radius:99px;border:1px solid var(--line);color:var(--muted)}
+.msgs{flex:1;overflow:auto;padding:16px 18px;display:flex;flex-direction:column;gap:14px;min-height:0}
+.who{display:flex;align-items:center;gap:8px;color:var(--muted);font-weight:600}
+.avatar{width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,.08);display:grid;place-items:center;font-size:13px}
+.bubble{align-self:flex-end;background:var(--grad);padding:10px 18px;border-radius:14px;max-width:85%;font-weight:500}
+.ai{border:1px solid var(--line);border-radius:14px;background:rgba(255,255,255,.035);padding:14px}
+.ai h3{margin:0 0 4px;font-size:15px}
+.ai p{margin:4px 0 10px;color:#cfc8ee}
+.finding{display:flex;gap:9px;padding:8px 0;border-top:1px solid rgba(255,255,255,.06)}
+.badge{flex:none;width:18px;height:18px;border-radius:50%;font-size:11px;display:grid;place-items:center;margin-top:2px}
+.badge.ok{background:rgba(52,211,153,.18);color:var(--green)} .badge.bad{background:rgba(248,113,113,.2);color:var(--red)}
+.chip{font:600 11px ui-monospace,Consolas,monospace;color:var(--blue);background:rgba(96,165,250,.12);border:1px solid rgba(96,165,250,.35);border-radius:6px;padding:0 6px;margin-left:4px;cursor:pointer}
+.chip:hover{background:rgba(96,165,250,.25)}
+.caveat{color:var(--amber);font-size:12.5px;margin-top:8px}
+details{margin-top:10px;border:1px solid rgba(255,255,255,.07);border-radius:10px;background:rgba(0,0,0,.18)}
+summary{cursor:pointer;padding:8px 12px;color:var(--muted);font-weight:600;font-size:12.5px}
+pre{margin:0;padding:12px 14px;background:var(--code);border-radius:0 0 10px 10px;overflow:auto;font:12.5px/1.5 ui-monospace,Consolas,monospace;color:#e6e1ff}
+.kw{color:#f472b6}.fn{color:#fbbf24}.num{color:#60a5fa}.str{color:#86efac}
+.meta{display:flex;justify-content:space-between;align-items:center;padding:4px 12px;color:var(--muted);font-size:11.5px}
+.trace{padding:8px 12px 12px;font-size:12.5px}
+.trace div{display:flex;gap:8px;padding:2px 0;color:#cfc8ee}.trace b{font-weight:600;min-width:112px;color:var(--muted)}
+.st-ok{color:var(--green)}.st-warn,.st-retry{color:var(--amber)}.st-error{color:var(--red)}
+.examples{display:flex;flex-wrap:wrap;gap:8px;padding:0 18px 10px}
+.ex{font-size:12px;padding:5px 11px;border-radius:99px;border:1px solid var(--line);background:rgba(168,85,247,.1);color:#d8ccff;cursor:pointer}
+.ex:hover{background:rgba(168,85,247,.25)}
+form{display:flex;gap:10px;margin:0 18px 18px;padding:6px 6px 6px 18px;border:1px solid var(--line);border-radius:99px;background:rgba(255,255,255,.04)}
+input{flex:1;background:none;border:0;outline:0;color:var(--text);font:inherit}
+input::placeholder{color:var(--muted)}
+button.send{width:42px;height:42px;border-radius:50%;border:0;background:var(--grad);color:#fff;cursor:pointer;font-size:18px}
+button.send:disabled{opacity:.5;cursor:wait}
+.dots span{display:inline-block;width:6px;height:6px;margin-right:4px;border-radius:50%;background:var(--purple);animation:b 1s infinite}
+.dots span:nth-child(2){animation-delay:.15s}.dots span:nth-child(3){animation-delay:.3s}
+@keyframes b{0%,80%,100%{opacity:.25}40%{opacity:1}}
+/* right column */
+.side{display:flex;flex-direction:column;gap:20px;overflow:auto;min-height:0;padding-right:2px}
+.panel{padding:16px 18px;flex:none}
+.panel h2{margin:0 0 6px;font-size:15px;font-weight:600;display:flex;justify-content:space-between;color:#ddd6ff}
+.panel h2 small{color:var(--muted);font-weight:500}
+.empty{color:var(--muted);padding:40px 0;text-align:center}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th,td{padding:7px 10px;text-align:right;border-bottom:1px solid rgba(255,255,255,.06);white-space:nowrap}
+th{color:var(--muted);font-weight:600} th:first-child,td:first-child{text-align:left}
+tbody tr:hover{background:rgba(255,255,255,.04)}
+.tablewrap{overflow:auto}
+.foot{color:var(--muted);font-size:11.5px;text-align:center;padding-bottom:4px}
+@media(max-width:900px){body{padding:12px}.app{grid-template-columns:1fr;height:auto}.chat{height:80vh}.side{overflow:visible}}
+</style>
+</head>
+<body>
+<div class="app">
+  <section class="card chat">
+    <div class="titlebar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></div>
+    <div class="head">
+      <div class="logo">&#128269;</div><h1>Data Detective</h1><span class="pill" id="engine">...</span>
+    </div>
+    <div class="msgs" id="msgs">
+      <div class="ai"><h3>Ask a business question about the marketing data.</h3>
+        <p>I inspect the dataset, write and validate SQL, run it read-only, chart the result, and show the evidence behind every number. All data is synthetic.</p></div>
+    </div>
+    <div class="examples" id="examples"></div>
+    <form id="form"><input id="q" placeholder="Type a message..." autocomplete="off" maxlength="500"><button class="send" id="send" aria-label="Send">&#10148;</button></form>
+  </section>
+  <section class="side" id="side">
+    <div class="card panel"><div class="empty">Charts and data will appear here after your first question.</div></div>
+  </section>
+</div>
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const KW = /\b(SELECT|FROM|WHERE|GROUP BY|ORDER BY|LIMIT|AS|WITH|JOIN|ON|AND|OR|DESC|ASC|FILTER|OVER|IN|DATE|CASE|WHEN|THEN|ELSE|END)\b/g;
+function hl(sql){
+  return esc(sql).replace(/'[^']*'/g, m=>`<span class="str">${m}</span>`)
+    .replace(KW, m=>`<span class="kw">${m}</span>`)
+    .replace(/\b(SUM|COUNT|AVG|NULLIF|ROUND|EXTRACT|DATE_TRUNC)\(/g, (m,f)=>`<span class="fn">${f}</span>(`)
+    .replace(/\b(\d+(\.\d+)?)\b(?![^<]*>)/g, '<span class="num">$1</span>');
+}
+const fmtCell = v => v===null ? '' : typeof v==='number' ? (Math.abs(v)>=1000 ? v.toLocaleString(undefined,{maximumFractionDigits:0}) : (Number.isInteger(v)?v:v.toLocaleString(undefined,{maximumFractionDigits:3}))) : esc(v);
+const tableHTML = t => `<div class="tablewrap"><table><thead><tr><th>#</th>${t.columns.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${
+  t.rows.map((r,i)=>`<tr><td>${i+1}</td>${r.map(fmtCell).map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+let last = null;
+
+function setPreview(id){
+  const ev = last.evidence.find(e=>e.id===id); if(!ev) return;
+  $('#preview').innerHTML = tableHTML({columns:ev.columns, rows:ev.rows.slice(0,8)});
+  $('#previewTitle').innerHTML = `Data Preview <small>${id} &middot; ${ev.row_count} rows</small>`;
+  const d = document.getElementById('sql-'+id); if(d){ d.open = true; d.scrollIntoView({behavior:'smooth',block:'nearest'}); }
+}
+window.setPreview = setPreview;
+
+function renderSide(r){
+  const side = $('#side'); side.innerHTML = '';
+  r.charts.forEach((c,i)=>{
+    const el = document.createElement('div'); el.className='card panel';
+    el.innerHTML = `<h2>${esc(c.title)}<small>${c.evidence}</small></h2><div id="chart-${i}"></div>`;
+    side.appendChild(el);
+    const fig = c.figure; fig.layout.autosize = true;
+    Plotly.newPlot(`chart-${i}`, fig.data, fig.layout, {displayModeBar:false, responsive:true});
+  });
+  const p = document.createElement('div'); p.className='card panel';
+  p.innerHTML = `<h2 id="previewTitle">Data Preview</h2><div id="preview"></div>`;
+  side.appendChild(p);
+  const f = document.createElement('div'); f.className='foot'; f.textContent='Synthetic data - safe to publish.'; side.appendChild(f);
+  if(r.table) setPreview(r.table.evidence);
+}
+
+function renderAnswer(r){
+  const f = r.findings.map(x=>`<div class="finding"><span class="badge ${x.verified?'ok':'bad'}" title="${x.verified?'Every number traces to query results':'Could not trace: '+esc((x.unverified_numbers||[]).join(', '))}">${x.verified?'&#10003;':'!'}</span>
+    <div>${esc(x.text)}${x.evidence.map(e=>`<span class="chip" onclick="setPreview('${e}')">${e}</span>`).join('')}</div></div>`).join('');
+  const ev = r.evidence.map(e=>`<details id="sql-${e.id}"><summary>${e.id} &middot; ${esc(e.purpose)}</summary><pre>${hl(e.sql)}</pre>
+    <div class="meta"><span>${e.row_count} rows &middot; ${e.elapsed_ms} ms</span></div></details>`).join('');
+  const tr = `<details><summary>Agent trace (${r.trace.length} steps &middot; ${r.elapsed_ms} ms)</summary><div class="trace">${
+    r.trace.map(t=>`<div><b>${esc(t.step)}</b><span class="st-${t.status}">${esc(t.detail)}</span></div>`).join('')}</div></details>`;
+  return `<div class="who"><span class="avatar">&#9673;</span>AI Response</div><div class="ai"><h3>${esc(r.headline)}</h3><p>${esc(r.summary)}</p>${f}
+    ${r.caveats.map(c=>`<div class="caveat">&#9888; ${esc(c)}</div>`).join('')}${ev}${tr}</div>`;
+}
+
+async function ask(question){
+  const msgs = $('#msgs'); $('#send').disabled = true;
+  msgs.insertAdjacentHTML('beforeend', `<div class="who"><span class="avatar">&#9786;</span>User</div><div class="bubble">${esc(question)}</div>`);
+  msgs.insertAdjacentHTML('beforeend', `<div class="ai dots" id="thinking"><span></span><span></span><span></span>Investigating...</div>`);
+  msgs.scrollTop = msgs.scrollHeight;
+  try{
+    const res = await fetch('/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question})});
+    if(!res.ok) throw new Error((await res.json()).detail || res.statusText);
+    last = await res.json();
+    $('#thinking').remove();
+    msgs.insertAdjacentHTML('beforeend', renderAnswer(last));
+    const blocks = msgs.querySelectorAll('.who'); blocks[blocks.length-1].scrollIntoView({block:'start',behavior:'smooth'});
+    if(last.ok) renderSide(last);
+  }catch(e){
+    $('#thinking').remove();
+    msgs.insertAdjacentHTML('beforeend', `<div class="ai"><h3>Something went wrong</h3><p>${esc(e.message)}</p></div>`);
+  }
+  $('#send').disabled = false;
+}
+$('#form').addEventListener('submit', e=>{ e.preventDefault(); const v=$('#q').value.trim(); if(v.length<3) return; $('#q').value=''; ask(v); });
+fetch('/api/examples').then(r=>r.json()).then(list=>{
+  $('#examples').innerHTML = list.map(x=>`<span class="ex">${esc(x)}</span>`).join('');
+  document.querySelectorAll('.ex').forEach(el=>el.onclick=()=>ask(el.textContent));
+});
+fetch('/api/health').then(r=>r.json()).then(h=>$('#engine').textContent = h.engine==='offline-rules' ? 'offline mode' : h.engine).catch(()=>{});
+</script>
+</body>
+</html>
