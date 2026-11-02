@@ -28,7 +28,8 @@ Rules:
   (2) break the anomalous period down by channel or region versus the prior period,
   (3) drill into the biggest driver. Compare against the same period last year to rule out seasonality.
 - For plain ranking questions: run the ranking, then (if useful) a monthly trend for context.
-- If a previous query failed, fix it using the error message."""
+- If a previous query failed, fix it using the error message.
+- Resolve follow-ups ("what about Europe?", "break that down by device") against the earlier questions."""
 
 NARRATE_SYSTEM = """You are Data Detective writing up your findings for a business reader.
 Use ONLY the evidence tables provided. Reply with ONE JSON object and nothing else:
@@ -61,6 +62,13 @@ def _evidence_block(ctx: PlanContext, rows: int) -> str:
     return "\n".join(out)
 
 
+def _history(ctx: PlanContext) -> str:
+    if not ctx.history:
+        return ""
+    prior = "\n".join(f"- {q}" for q in ctx.history)
+    return f"Earlier questions in this conversation (the new question may be a follow-up to them):\n{prior}\n\n"
+
+
 class ClaudeBrain:
     def __init__(self, model: str = MODEL, client=None):
         if client is None:
@@ -78,7 +86,7 @@ class ClaudeBrain:
         return "".join(b.text for b in msg.content if getattr(b, "type", "") == "text")
 
     def next_query(self, ctx: PlanContext) -> Proposal | None:
-        user = f"Question: {ctx.question}\n\nSchema:\n{ctx.schema_prompt}\n\nEvidence so far:\n{_evidence_block(ctx, 15)}\n\n"
+        user = _history(ctx) + f"Question: {ctx.question}\n\nSchema:\n{ctx.schema_prompt}\n\nEvidence so far:\n{_evidence_block(ctx, 15)}\n\n"
         user += f"This is query {len(ctx.evidence) + 1} of at most {ctx.max_steps}.\n"
         if ctx.last_error:
             user += f"\nYour previous SQL was rejected.\nSQL:\n{ctx.last_error['sql']}\nProblems: {'; '.join(ctx.last_error['errors'])}\nReturn a corrected query.\n"
@@ -91,7 +99,7 @@ class ClaudeBrain:
         return Proposal(sql=sql, purpose=reply.get("purpose") or "Analysis query")
 
     def narrate(self, ctx: PlanContext) -> Narrative:
-        user = f"Question: {ctx.question}\n\nEvidence:\n{_evidence_block(ctx, 40)}"
+        user = _history(ctx) + f"Question: {ctx.question}\n\nEvidence:\n{_evidence_block(ctx, 40)}"
         r = _extract_json(self._ask(NARRATE_SYSTEM, user, 2000))
         hl = r.get("highlight") or {}
         return Narrative(

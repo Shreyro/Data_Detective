@@ -1,3 +1,5 @@
+import os
+
 import pytest
 
 from data_detective import datagen
@@ -16,3 +18,12 @@ def wh(tmp_path_factory):
 @pytest.fixture(scope="session")
 def agent(wh):
     return DataDetective(wh, OfflineBrain())
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _no_api_key():
+    """The whole suite must pass without an API key (CI has none)."""
+    old = os.environ.pop("ANTHROPIC_API_KEY", None)
+    yield
+    if old is not None:
+        os.environ["ANTHROPIC_API_KEY"] = old

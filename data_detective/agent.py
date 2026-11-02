@@ -1,6 +1,7 @@
 """The agent loop: plan -> validate -> execute -> (repair) -> explain -> verify."""
 from __future__ import annotations
 
+import os
 import time
 
 import duckdb
@@ -15,11 +16,21 @@ from .viz import make_chart
 
 
 def make_brain():
-    if config.FORCE_OFFLINE or not __import__("os").getenv("ANTHROPIC_API_KEY"):
+    """Offline rule-based brain by default; Claude only when a key is set AND the SDK is installed."""
+    if config.FORCE_OFFLINE or not os.getenv("ANTHROPIC_API_KEY"):
         return OfflineBrain()
-    from .claude import ClaudeBrain
+    try:
+        from .claude import ClaudeBrain
 
-    return ClaudeBrain()
+        return ClaudeBrain()
+    except ImportError:  # `anthropic` not installed: stay fully offline
+        return OfflineBrain()
+
+
+UNANSWERED = ("I couldn't map that to the marketing data. I understand metrics (revenue, spend, ROAS, CTR, conversion rate, CPC, CAC, "
+              "clicks, conversions), breakdowns (channel, region, device, campaign, objective), time windows (2025, Q3 2025, March 2024) "
+              "and question types: rankings, trends, totals, year-vs-year comparisons and 'why did X drop?' investigations. "
+              "Try 'Top sales by region' or 'Why did ROAS drop in Q3 2025?'.")
 
 
 class DataDetective:
@@ -28,7 +39,9 @@ class DataDetective:
         self.brain = brain or make_brain()
         self.fallback = OfflineBrain()
 
-    def ask(self, question: str) -> dict:
+    def ask(self, question: str, history: list[str] | None = None) -> dict:
+        """Answer `question`. `history` holds earlier questions of the conversation (oldest first) for follow-ups."""
+        history = [h for h in (history or []) if h and h.strip()][-config.MAX_HISTORY:]
         t_start = time.perf_counter()
         trace: list[dict] = []
         evidence: list[Evidence] = []
@@ -38,8 +51,12 @@ class DataDetective:
         def log(step: str, status: str, detail: str, ms: float | None = None):
             trace.append({"step": step, "status": status, "detail": detail, "ms": None if ms is None else round(ms, 1)})
 
-        log("Inspect dataset", "ok", f"{self.wh.profile()['rows']:,} rows, {self.wh.profile()['date_min']} to {self.wh.profile()['date_max']}")
-        ctx = PlanContext(question, self.wh.schema_prompt(), self.wh.profile(), evidence, 0, config.MAX_STEPS)
+        prof = self.wh.profile()
+        log("Inspect dataset", "ok", f"{prof['rows']:,} rows, {prof['date_min']} to {prof['date_max']}")
+        ctx = PlanContext(question, self.wh.schema_prompt(), prof, evidence, 0, config.MAX_STEPS, history=history)
+        if hasattr(brain, "describe"):
+            plan = brain.describe(ctx)
+            log("Understand question", "ok" if plan else "warn", plan or "Could not map the question to a metric, dimension or time window")
 
         while len(evidence) < config.MAX_STEPS:
             ctx.last_error, proposal, accepted = None, None, False
@@ -78,7 +95,7 @@ class DataDetective:
 
         if not evidence:
             return {"question": question, "engine": engine, "ok": False, "headline": "I couldn't answer that",
-                    "summary": "No valid query could be produced for this question. Try rephrasing, e.g. 'Top sales by region' or 'Why did ROAS drop in Q3 2025?'.",
+                    "summary": UNANSWERED,
                     "findings": [], "caveats": [], "evidence": [], "charts": [], "table": None, "trace": trace,
                     "elapsed_ms": round((time.perf_counter() - t_start) * 1000)}
 

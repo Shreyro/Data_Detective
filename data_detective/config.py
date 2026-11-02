@@ -16,3 +16,4 @@ MAX_STEPS = 3            # max analysis queries per question
 MAX_REPAIRS = 2          # SQL repair attempts per step
 QUERY_TIMEOUT_S = 10     # kill queries that run longer than this
 MAX_QUESTION_CHARS = 500
+MAX_HISTORY = 5          # earlier questions kept for follow-ups

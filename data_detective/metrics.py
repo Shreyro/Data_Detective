@@ -14,7 +14,7 @@ METRICS: dict[str, dict] = {
     "conversions": dict(num="conversions", den=None, kind="count", label="conversions", additive=True,
                         aliases=["conversions", "orders", "purchases"]),
     "roas":        dict(num="revenue", den="spend", kind="ratio", label="ROAS", additive=False,
-                        aliases=["roas", "return on ad spend", "return on spend"]),
+                        aliases=["roas", "return on ad spend", "return on spend", "return on investment", "roi", "efficien", "profitab"]),
     "ctr":         dict(num="clicks", den="impressions", kind="pct", label="CTR", additive=False,
                         aliases=["ctr", "click-through", "click through"]),
     "cvr":         dict(num="conversions", den="clicks", kind="pct", label="conversion rate", additive=False,

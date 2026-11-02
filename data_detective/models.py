@@ -39,3 +39,4 @@ class PlanContext:
     step: int
     max_steps: int
     last_error: dict | None = None   # {"sql": str, "errors": [str]}
+    history: list[str] = field(default_factory=list)  # earlier questions in this conversation
