@@ -1,0 +1,4 @@
+# Optional: only needed to use Claude as the planner (set ANTHROPIC_API_KEY).
+# The project runs fully offline without this.
+-r requirements.txt
+anthropic>=0.40

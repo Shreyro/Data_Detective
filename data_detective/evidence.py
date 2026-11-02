@@ -17,6 +17,7 @@ import pandas as pd
 from .models import Evidence
 
 PREVIEW_ROWS = 50
+MAX_VERIFY_ROWS = 1000   # = config.MAX_ROWS: every returned row can back a claim
 
 
 def df_to_records(df: pd.DataFrame, limit: int = PREVIEW_ROWS) -> dict:
@@ -48,14 +49,15 @@ _MULT = {"k": 1e3, "m": 1e6, "b": 1e9}
 
 def _candidates(df: pd.DataFrame) -> np.ndarray:
     vals: list[np.ndarray] = [np.array([float(len(df))])]
-    num = df.select_dtypes("number").iloc[:200]
+    num = df.select_dtypes("number").iloc[:MAX_VERIFY_ROWS]
     cols = {}
     for c in num.columns:
         a = num[c].dropna().to_numpy(dtype=float)
         if a.size == 0:
             continue
         cols[c] = a
-        vals += [np.abs(a), np.abs(a) * 100, np.array([a.sum(), a.mean(), a.max(), a.min()]), np.abs(a.sum()) * np.array([1, 100])]
+        vals += [np.abs(a), np.abs(a) * 100, np.array([a.sum(), a.mean(), a.max(), a.min()]), np.abs(a.sum()) * np.array([1, 100]),
+                 np.abs(np.cumsum(a)), np.abs(np.cumsum(a)) * 100]   # running totals in row order (top-k sums)
         if a.size > 1:
             prev, cur = a[:-1], a[1:]
             d = cur - prev
@@ -63,7 +65,8 @@ def _candidates(df: pd.DataFrame) -> np.ndarray:
                 pc = np.where(prev != 0, d / prev, np.nan)
                 pc2 = np.where(cur != 0, -d / cur, np.nan)
                 ratio = np.where(cur != 0, prev / cur, np.nan)
-            vals += [np.abs(d), np.abs(d) * 100, np.abs(pc) * 100, np.abs(pc2) * 100, np.abs(ratio), np.abs(1 / ratio)]
+                inv = np.where(ratio != 0, 1 / ratio, np.nan)
+            vals += [np.abs(d), np.abs(d) * 100, np.abs(pc) * 100, np.abs(pc2) * 100, np.abs(ratio), np.abs(inv)]
             if a[0] != 0:
                 vals.append(np.array([abs(a[-1] / a[0] - 1) * 100, abs(a[-1] - a[0]), abs(a[-1] / a[0])]))
             if a.min() != 0:

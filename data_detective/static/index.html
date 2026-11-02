@@ -40,6 +40,9 @@ body{background:radial-gradient(1200px 700px at 15% -10%,#2a1763 0%,transparent 
 .chip{font:600 11px ui-monospace,Consolas,monospace;color:var(--blue);background:rgba(96,165,250,.12);border:1px solid rgba(96,165,250,.35);border-radius:6px;padding:0 6px;margin-left:4px;cursor:pointer}
 .chip:hover{background:rgba(96,165,250,.25)}
 .caveat{color:var(--amber);font-size:12.5px;margin-top:8px}
+.plan{font-size:12px;color:var(--muted);margin:-2px 0 6px}.plan b{color:#cbbcff;font-weight:600}
+.newchat{font-family:inherit;font-weight:600;font-size:11px;padding:4px 10px;border-radius:99px;border:1px solid var(--line);background:none;color:var(--muted);cursor:pointer}
+.newchat:hover{color:var(--text);background:rgba(168,85,247,.15)}
 details{margin-top:10px;border:1px solid rgba(255,255,255,.07);border-radius:10px;background:rgba(0,0,0,.18)}
 summary{cursor:pointer;padding:8px 12px;color:var(--muted);font-weight:600;font-size:12.5px}
 pre{margin:0;padding:12px 14px;background:var(--code);border-radius:0 0 10px 10px;overflow:auto;font:12.5px/1.5 ui-monospace,Consolas,monospace;color:#e6e1ff}
@@ -48,7 +51,8 @@ pre{margin:0;padding:12px 14px;background:var(--code);border-radius:0 0 10px 10p
 .trace{padding:8px 12px 12px;font-size:12.5px}
 .trace div{display:flex;gap:8px;padding:2px 0;color:#cfc8ee}.trace b{font-weight:600;min-width:112px;color:var(--muted)}
 .st-ok{color:var(--green)}.st-warn,.st-retry{color:var(--amber)}.st-error{color:var(--red)}
-.examples{display:flex;flex-wrap:wrap;gap:8px;padding:0 18px 10px}
+.examples{display:flex;flex-wrap:nowrap;overflow-x:auto;gap:8px;padding:0 18px 10px;scrollbar-width:thin}
+.ex{flex:none}
 .ex{font-size:12px;padding:5px 11px;border-radius:99px;border:1px solid var(--line);background:rgba(168,85,247,.1);color:#d8ccff;cursor:pointer}
 .ex:hover{background:rgba(168,85,247,.25)}
 form{display:flex;gap:10px;margin:0 18px 18px;padding:6px 6px 6px 18px;border:1px solid var(--line);border-radius:99px;background:rgba(255,255,255,.04)}
@@ -79,11 +83,12 @@ tbody tr:hover{background:rgba(255,255,255,.04)}
   <section class="card chat">
     <div class="titlebar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></div>
     <div class="head">
-      <div class="logo">&#128269;</div><h1>Data Detective</h1><span class="pill" id="engine">...</span>
+      <div class="logo">&#128269;</div><h1>Data Detective</h1><button class="newchat" id="newchat" title="Forget earlier questions (follow-ups start fresh)">New chat</button><span class="pill" id="engine">...</span>
     </div>
     <div class="msgs" id="msgs">
       <div class="ai"><h3>Ask a business question about the marketing data.</h3>
-        <p>I inspect the dataset, write and validate SQL, run it read-only, chart the result, and show the evidence behind every number. All data is synthetic.</p></div>
+        <p>I inspect the dataset, write and validate SQL, run it read-only, chart the result, and show the evidence behind every number. All data is synthetic.</p>
+        <p>Follow-ups work too: after "Revenue by region" try "what about Europe only?" or "break that down by device".</p></div>
     </div>
     <div class="examples" id="examples"></div>
     <form id="form"><input id="q" placeholder="Type a message..." autocomplete="off" maxlength="500"><button class="send" id="send" aria-label="Send">&#10148;</button></form>
@@ -102,10 +107,11 @@ function hl(sql){
     .replace(/\b(SUM|COUNT|AVG|NULLIF|ROUND|EXTRACT|DATE_TRUNC)\(/g, (m,f)=>`<span class="fn">${f}</span>(`)
     .replace(/\b(\d+(\.\d+)?)\b(?![^<]*>)/g, '<span class="num">$1</span>');
 }
-const fmtCell = v => v===null ? '' : typeof v==='number' ? (Math.abs(v)>=1000 ? v.toLocaleString(undefined,{maximumFractionDigits:0}) : (Number.isInteger(v)?v:v.toLocaleString(undefined,{maximumFractionDigits:3}))) : esc(v);
+const fmtCell = (v, col) => v===null ? '' : (col==='year' || col==='rank') ? esc(v) : typeof v==='number' ? (Math.abs(v)>=1000 ? v.toLocaleString(undefined,{maximumFractionDigits:0}) : (Number.isInteger(v)?v:v.toLocaleString(undefined,{maximumFractionDigits:3}))) : esc(v);
 const tableHTML = t => `<div class="tablewrap"><table><thead><tr><th>#</th>${t.columns.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${
-  t.rows.map((r,i)=>`<tr><td>${i+1}</td>${r.map(fmtCell).map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+  t.rows.map((r,i)=>`<tr><td>${i+1}</td>${r.map((v,j)=>fmtCell(v, t.columns[j])).map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
 let last = null;
+let history = [];   // earlier questions in this conversation, sent so follow-ups can be resolved
 
 function setPreview(id){
   const ev = last.evidence.find(e=>e.id===id); if(!ev) return;
@@ -138,7 +144,9 @@ function renderAnswer(r){
     <div class="meta"><span>${e.row_count} rows &middot; ${e.elapsed_ms} ms</span></div></details>`).join('');
   const tr = `<details><summary>Agent trace (${r.trace.length} steps &middot; ${r.elapsed_ms} ms)</summary><div class="trace">${
     r.trace.map(t=>`<div><b>${esc(t.step)}</b><span class="st-${t.status}">${esc(t.detail)}</span></div>`).join('')}</div></details>`;
-  return `<div class="who"><span class="avatar">&#9673;</span>AI Response</div><div class="ai"><h3>${esc(r.headline)}</h3><p>${esc(r.summary)}</p>${f}
+  const plan = r.trace.find(t=>t.step==='Understand question' && t.status==='ok');
+  const planHTML = plan ? `<div class="plan">Interpreted as: <b>${esc(plan.detail)}</b></div>` : '';
+  return `<div class="who"><span class="avatar">&#9673;</span>AI Response</div><div class="ai"><h3>${esc(r.headline)}</h3>${planHTML}<p>${esc(r.summary)}</p>${f}
     ${r.caveats.map(c=>`<div class="caveat">&#9888; ${esc(c)}</div>`).join('')}${ev}${tr}</div>`;
 }
 
@@ -148,13 +156,13 @@ async function ask(question){
   msgs.insertAdjacentHTML('beforeend', `<div class="ai dots" id="thinking"><span></span><span></span><span></span>Investigating...</div>`);
   msgs.scrollTop = msgs.scrollHeight;
   try{
-    const res = await fetch('/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question})});
+    const res = await fetch('/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question, history})});
     if(!res.ok) throw new Error((await res.json()).detail || res.statusText);
     last = await res.json();
     $('#thinking').remove();
     msgs.insertAdjacentHTML('beforeend', renderAnswer(last));
     const blocks = msgs.querySelectorAll('.who'); blocks[blocks.length-1].scrollIntoView({block:'start',behavior:'smooth'});
-    if(last.ok) renderSide(last);
+    if(last.ok){ renderSide(last); history = [...history, question].slice(-5); }
   }catch(e){
     $('#thinking').remove();
     msgs.insertAdjacentHTML('beforeend', `<div class="ai"><h3>Something went wrong</h3><p>${esc(e.message)}</p></div>`);
@@ -162,6 +170,10 @@ async function ask(question){
   $('#send').disabled = false;
 }
 $('#form').addEventListener('submit', e=>{ e.preventDefault(); const v=$('#q').value.trim(); if(v.length<3) return; $('#q').value=''; ask(v); });
+$('#newchat').onclick = ()=>{
+  history = [];
+  $('#msgs').insertAdjacentHTML('beforeend', `<div class="plan" style="text-align:center">New conversation: earlier questions are forgotten.</div>`);
+};
 fetch('/api/examples').then(r=>r.json()).then(list=>{
   $('#examples').innerHTML = list.map(x=>`<span class="ex">${esc(x)}</span>`).join('');
   document.querySelectorAll('.ex').forEach(el=>el.onclick=()=>ask(el.textContent));

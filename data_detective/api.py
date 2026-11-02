@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Annotated
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
@@ -26,6 +27,8 @@ def agent() -> DataDetective:
 
 class AskRequest(BaseModel):
     question: str = Field(min_length=3, max_length=config.MAX_QUESTION_CHARS)
+    history: list[Annotated[str, Field(max_length=config.MAX_QUESTION_CHARS)]] = Field(
+        default_factory=list, max_length=20, description="Earlier questions in this conversation, oldest first (for follow-ups).")
 
 
 EXAMPLES = [
@@ -35,6 +38,8 @@ EXAMPLES = [
     "Which campaigns have the highest CAC in 2025?",
     "Monthly revenue trend by channel",
     "Compare conversion rate by device",
+    "Compare 2024 vs 2025 revenue by channel",
+    "How much did we spend in 2025?",
 ]
 
 
@@ -57,7 +62,7 @@ def examples():
 @app.post("/api/ask")
 def ask(req: AskRequest):
     try:
-        return agent().ask(req.question.strip())
+        return agent().ask(req.question.strip(), req.history)
     except Exception as e:  # never leak a stack trace to the browser
         raise HTTPException(status_code=500, detail=f"Agent error: {type(e).__name__}: {e}")
 

@@ -39,6 +39,10 @@ def make_chart(ev: Evidence, highlight: str | None = None) -> dict | None:
         return None
     fig = go.Figure()
 
+    if not time_cols and not cat_cols and "year" in df.columns:   # yearly series: years as categories
+        df = df.assign(year=df["year"].astype(str))
+        cat_cols = ["year"]
+
     if time_cols:
         x = time_cols[0]
         if cat_cols and len(num_cols) >= 1:
@@ -66,9 +70,9 @@ def make_chart(ev: Evidence, highlight: str | None = None) -> dict | None:
                                     marker=dict(size=10, color=RED), name="flagged", hoverinfo="skip")
     elif cat_cols:
         x = cat_cols[0]
-        y = "change" if "change" in num_cols else num_cols[0]
+        y = "impact" if "impact" in num_cols else "change" if "change" in num_cols else num_cols[0]
         d = df
-        if y == "change":
+        if y in ("change", "impact"):
             colors = [GREEN if v >= 0 else RED for v in d[y]]
         else:
             n = len(d)

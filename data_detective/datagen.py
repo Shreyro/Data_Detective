@@ -68,7 +68,7 @@ def build_daily(campaigns: pd.DataFrame, rng: np.random.Generator) -> pd.DataFra
             for device, dw in DEVICES.items():
                 n = len(d)
                 growth = 1.0 + 0.3 * (d - pd.Timestamp(START)).days.values / 1095
-                weekend = np.where(d.dayofweek >= 5, 1.12, 1.0)
+                weekend = np.where(d.day_of_week >= 5, 1.12, 1.0)
                 season = np.select([d.month == 11, d.month == 12, d.month.isin([1, 2])], [1.45, 1.35, 0.85], 1.0)
                 lam = scale * c.scale * rw * dw * growth * weekend * season
                 imps = rng.poisson(lam).astype(np.int64)
